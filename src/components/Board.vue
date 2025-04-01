@@ -1,0 +1,193 @@
+<script setup lang="ts">
+import { computed } from 'vue';
+import { useGameStore } from '@/stores/game';
+import { BOARD_WIDTH } from '@/constants/tetrominos';
+
+const gameStore = useGameStore();
+
+// Merge the current pieces into a visual representation of the board
+const displayBoard = computed(() => {
+    // Clone the board
+    const boardCopy = gameStore.board.map(row => [...row]);
+
+    // Process the first piece
+    if (gameStore.currentPiece1 && gameStore.ghostPiecePosition1) {
+        renderPieceAndGhost(
+            boardCopy,
+            gameStore.currentPiece1,
+            gameStore.ghostPiecePosition1,
+            false, // Left piece (blue highlight)
+            true   // WASD piece
+        );
+    }
+
+    // Process the second piece
+    if (gameStore.currentPiece2 && gameStore.ghostPiecePosition2) {
+        renderPieceAndGhost(
+            boardCopy,
+            gameStore.currentPiece2,
+            gameStore.ghostPiecePosition2,
+            true,  // Right piece (orange highlight)
+            false  // Arrow keys piece
+        );
+    }
+
+    return boardCopy;
+});
+
+function renderPieceAndGhost(boardCopy: any[][], piece: any, ghostPosition: any, isRightPiece: boolean, isLeftPiece: boolean) {
+    const { shape, position, color } = piece;
+
+    // Add trail gradients between current piece and ghost piece
+    if (position.y < ghostPosition.y) {
+        for (let y = 0; y < shape.length; y++) {
+            for (let x = 0; x < shape[y].length; x++) {
+                if (shape[y][x]) {
+                    const currentX = position.x + x;
+                    const currentY = position.y + y;
+                    const ghostY = ghostPosition.y + y;
+
+                    if (ghostY - currentY > 1) {
+                        for (let trailY = currentY + 1; trailY < ghostY; trailY++) {
+                            if (
+                                trailY >= 0 &&
+                                trailY < boardCopy.length &&
+                                currentX >= 0 &&
+                                currentX < BOARD_WIDTH &&
+                                !boardCopy[trailY][currentX].filled
+                            ) {
+                                const distance = ghostY - currentY - 1;
+                                const progress = (trailY - currentY) / (distance || 1);
+                                const opacity = Math.round((1 - progress) * 60);
+
+                                boardCopy[trailY][currentX] = {
+                                    filled: true,
+                                    color: `${color}${opacity.toString(16).padStart(2, '0')}`,
+                                    isTrail: true
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Add ghost piece
+    for (let y = 0; y < shape.length; y++) {
+        for (let x = 0; x < shape[y].length; x++) {
+            if (shape[y][x]) {
+                const boardX = ghostPosition.x + x;
+                const boardY = ghostPosition.y + y;
+
+                if (
+                    boardY >= 0 &&
+                    boardY < boardCopy.length &&
+                    boardX >= 0 &&
+                    boardX < BOARD_WIDTH &&
+                    !boardCopy[boardY][boardX].isActive
+                ) {
+                    boardCopy[boardY][boardX] = {
+                        filled: true,
+                        color: `${color}80`,
+                        isGhost: true
+                    };
+                }
+            }
+        }
+    }
+
+    // Add the current piece (last to ensure it's on top)
+    for (let y = 0; y < shape.length; y++) {
+        for (let x = 0; x < shape[y].length; x++) {
+            if (shape[y][x]) {
+                const boardX = position.x + x;
+                const boardY = position.y + y;
+
+                if (boardY >= 0 && boardY < boardCopy.length && boardX >= 0 && boardX < BOARD_WIDTH) {
+                    boardCopy[boardY][boardX] = {
+                        filled: true,
+                        color,
+                        isActive: true,
+                        isRightPiece,
+                        isLeftPiece
+                    };
+                }
+            }
+        }
+    }
+}
+</script>
+
+<template>
+    <div class="tetris-board">
+        <div v-for="(row, rowIndex) in displayBoard" :key="`row-${rowIndex}`" class="board-row">
+            <div v-for="(cell, cellIndex) in row" :key="`cell-${rowIndex}-${cellIndex}`" class="board-cell" :class="{
+                filled: cell.filled,
+                ghost: cell.isGhost,
+                trail: cell.isTrail,
+                active: cell.isActive,
+                'right-piece': cell.isRightPiece,
+                'left-piece': cell.isLeftPiece
+            }" :style="{ backgroundColor: cell.filled ? cell.color : 'transparent' }"></div>
+        </div>
+    </div>
+</template>
+
+<style scoped>
+.tetris-board {
+    border: 2px solid #333;
+    display: inline-block;
+    background-color: #111;
+}
+
+.board-row {
+    display: flex;
+}
+
+.board-cell {
+    width: 25px;
+    height: 25px;
+    border: 1px solid #333;
+    box-sizing: border-box;
+}
+
+.filled {
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.3);
+}
+
+.active {
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.ghost {
+    border: 2px dashed rgba(255, 255, 255, 0.7);
+    box-shadow: none;
+    background-image: repeating-linear-gradient(45deg,
+            rgba(255, 255, 255, 0.3) 0px,
+            rgba(255, 255, 255, 0.3) 5px,
+            transparent 5px,
+            transparent 10px);
+    background-size: 14px 14px;
+}
+
+.trail {
+    border: none;
+    box-shadow: none;
+}
+
+/* Different highlight colors for left and right pieces */
+.left-piece {
+    border: 3px solid #3498db;
+    /* Blue highlight for WASD piece */
+    box-shadow: 0 0 8px #3498db, inset 0 0 5px #3498db;
+}
+
+.right-piece {
+    border: 3px solid #e67e22;
+    /* Orange highlight for Arrow keys piece */
+    box-shadow: 0 0 8px #e67e22, inset 0 0 5px #e67e22;
+}
+</style>
