@@ -1,9 +1,27 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useGameStore } from '@/stores/game';
-import { BOARD_WIDTH } from '@/constants/tetrominos';
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useGameStore } from '@/stores/game'
+import { BOARD_WIDTH } from '@/constants/tetrominos'
 
 const gameStore = useGameStore();
+const boardRef = ref<HTMLDivElement | null>(null)
+const cellSize = ref(25) // Default cell size
+
+// Calculate appropriate cell size based on screen width
+const calculateCellSize = () => {
+    if (!boardRef.value) return
+
+    const windowWidth = window.innerWidth
+    if (windowWidth <= 320) {
+        cellSize.value = 16 // Very small screens
+    } else if (windowWidth <= 480) {
+        cellSize.value = 20 // Small phones
+    } else if (windowWidth <= 768) {
+        cellSize.value = 22 // Tablets and large phones
+    } else {
+        cellSize.value = 25 // Desktop
+    }
+}
 
 // Merge the current pieces into a visual representation of the board
 const displayBoard = computed(() => {
@@ -117,19 +135,35 @@ function renderPieceAndGhost(boardCopy: any[][], piece: any, ghostPosition: any,
         }
     }
 }
+
+onMounted(() => {
+    calculateCellSize();
+    window.addEventListener('resize', calculateCellSize);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', calculateCellSize);
+});
 </script>
 
 <template>
-    <div class="tetris-board">
+    <div class="tetris-board" ref="boardRef">
         <div v-for="(row, rowIndex) in displayBoard" :key="`row-${rowIndex}`" class="board-row">
-            <div v-for="(cell, cellIndex) in row" :key="`cell-${rowIndex}-${cellIndex}`" class="board-cell" :class="{
-                filled: cell.filled,
-                ghost: cell.isGhost,
-                trail: cell.isTrail,
-                active: cell.isActive,
-                'right-piece': cell.isRightPiece,
-                'left-piece': cell.isLeftPiece
-            }" :style="{ backgroundColor: cell.filled ? cell.color : 'transparent' }"></div>
+            <div v-for="(cell, cellIndex) in row" :key="`cell-${rowIndex}-${cellIndex}`" class="board-cell"
+                 :class="{
+                    filled: cell.filled,
+                    ghost: cell.isGhost,
+                    trail: cell.isTrail,
+                    active: cell.isActive,
+                    'right-piece': cell.isRightPiece,
+                    'left-piece': cell.isLeftPiece
+                 }"
+                 :style="{
+                    backgroundColor: cell.filled ? cell.color : 'transparent',
+                    width: `${cellSize}px`,
+                    height: `${cellSize}px`
+                 }">
+            </div>
         </div>
     </div>
 </template>
@@ -146,8 +180,6 @@ function renderPieceAndGhost(boardCopy: any[][], piece: any, ghostPosition: any,
 }
 
 .board-cell {
-    width: 25px;
-    height: 25px;
     border: 1px solid #333;
     box-sizing: border-box;
 }
@@ -189,5 +221,23 @@ function renderPieceAndGhost(boardCopy: any[][], piece: any, ghostPosition: any,
     border: 3px solid #e67e22;
     /* Orange highlight for Arrow keys piece */
     box-shadow: 0 0 8px #e67e22, inset 0 0 5px #e67e22;
+}
+
+@media (max-width: 768px) {
+    .tetris-board {
+        border-width: 1px;
+    }
+
+    .board-cell {
+        border-width: 1px;
+    }
+
+    .filled, .active {
+        box-shadow: inset 0 0 3px rgba(255, 255, 255, 0.3);
+    }
+
+    .left-piece, .right-piece {
+        border-width: 2px;
+    }
 }
 </style>
