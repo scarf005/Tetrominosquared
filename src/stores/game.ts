@@ -2,14 +2,24 @@ import { defineStore } from "pinia"
 import { computed, ref } from "vue"
 import type { Cell, Position, Tetromino, TetrominoType } from "@/types/index.ts"
 import {
-  BOARD_HEIGHT,
   BOARD_WIDTH,
   TETROMINO_COLORS,
   TETROMINO_SHAPES,
   WALL_KICK_DATA,
   WALL_KICK_I,
   WALL_KICK_O,
-} from "@/constants/tetrominos"
+} from "@/constants/tetrominos.ts"
+import {
+  calculateGhostPosition,
+  checkCollisionBetweenPieces,
+  checkCollisionWithBoard,
+  rotateMatrix,
+} from "@/utils/pieceUtils.ts"
+import {
+  clearLines,
+  createEmptyBoard,
+  lockPieceToBoard,
+} from "@/utils/boardUtils.ts"
 
 export const useGameStore = defineStore("game", () => {
   // State
@@ -31,45 +41,23 @@ export const useGameStore = defineStore("game", () => {
   // Calculate ghost piece positions for both pieces
   const ghostPiecePosition1 = computed(() => {
     if (!currentPiece1.value) return null
-    return calculateGhostPosition(currentPiece1.value, currentPiece2.value)
+    return calculateGhostPosition(
+      currentPiece1.value,
+      currentPiece2.value,
+      board.value,
+    )
   })
 
   const ghostPiecePosition2 = computed(() => {
     if (!currentPiece2.value) return null
-    return calculateGhostPosition(currentPiece2.value, currentPiece1.value)
+    return calculateGhostPosition(
+      currentPiece2.value,
+      currentPiece1.value,
+      board.value,
+    )
   })
 
-  // Helper function to calculate ghost position considering both pieces
-  function calculateGhostPosition(
-    piece: Tetromino,
-    otherPiece: Tetromino | null,
-  ): Position {
-    let ghostY = piece.position.y
-    const ghostX = piece.position.x
-
-    while (
-      !checkCollisionWithBoard(piece, { x: ghostX, y: ghostY + 1 }) &&
-      !checkCollisionBetweenPieces(
-        { ...piece, position: { x: ghostX, y: ghostY + 1 } },
-        otherPiece,
-      )
-    ) {
-      ghostY++
-    }
-
-    return { x: ghostX, y: ghostY }
-  }
-
   // Actions
-  function createEmptyBoard(): Cell[][] {
-    return Array(BOARD_HEIGHT).fill(null).map(() =>
-      Array(BOARD_WIDTH).fill(null).map(() => ({
-        filled: false,
-        color: "",
-      }))
-    )
-  }
-
   function createRandomPiece(offsetX = 0): Tetromino {
     const types: TetrominoType[] = ["I", "J", "L", "O", "S", "T", "Z"]
     const type = types[Math.floor(Math.random() * types.length)]
@@ -140,7 +128,11 @@ export const useGameStore = defineStore("game", () => {
     // Only check for game over if the piece collides with the board,
     // not if it collides with the other piece (which might be anywhere on the board)
     if (
-      checkCollisionWithBoard(currentPiece1.value, currentPiece1.value.position)
+      checkCollisionWithBoard(
+        currentPiece1.value,
+        currentPiece1.value.position,
+        board.value,
+      )
     ) {
       gameOver.value = true
       stopGameLoop()
@@ -172,7 +164,11 @@ export const useGameStore = defineStore("game", () => {
     // Only check for game over if the piece collides with the board,
     // not if it collides with the other piece (which might be anywhere on the board)
     if (
-      checkCollisionWithBoard(currentPiece2.value, currentPiece2.value.position)
+      checkCollisionWithBoard(
+        currentPiece2.value,
+        currentPiece2.value.position,
+        board.value,
+      )
     ) {
       gameOver.value = true
       stopGameLoop()
@@ -192,6 +188,7 @@ export const useGameStore = defineStore("game", () => {
     const boardCollision = checkCollisionWithBoard(
       currentPiece1.value,
       newPosition,
+      board.value,
     )
     const pieceCollision = checkCollisionBetweenPieces({
       ...currentPiece1.value,
@@ -234,6 +231,7 @@ export const useGameStore = defineStore("game", () => {
     const boardCollision = checkCollisionWithBoard(
       currentPiece2.value,
       newPosition,
+      board.value,
     )
     const pieceCollision = checkCollisionBetweenPieces({
       ...currentPiece2.value,
@@ -300,7 +298,7 @@ export const useGameStore = defineStore("game", () => {
 
       // Check for collisions with both the board and the other piece
       if (
-        !checkCollisionWithBoard(newPiece, testPosition) &&
+        !checkCollisionWithBoard(newPiece, testPosition, board.value) &&
         !checkCollisionBetweenPieces(
           { ...newPiece, position: testPosition },
           otherPiece,
@@ -329,11 +327,15 @@ export const useGameStore = defineStore("game", () => {
     let dropY = piece.position.y
 
     while (
-      !checkCollisionWithBoard(piece, { x: piece.position.x, y: dropY + 1 }) &&
-      (!otherPiece || !checkCollisionBetweenPieces(
+      !checkCollisionWithBoard(
+        piece,
+        { x: piece.position.x, y: dropY + 1 },
+        board.value,
+      ) &&
+      !checkCollisionBetweenPieces(
         { ...piece, position: { x: piece.position.x, y: dropY + 1 } },
         otherPiece,
-      ))
+      )
     ) {
       dropY++
       score.value += 1 // Add 1 point for each cell dropped
@@ -348,7 +350,7 @@ export const useGameStore = defineStore("game", () => {
         checkCollisionWithBoard(piece, {
           x: piece.position.x,
           y: piece.position.y + 1,
-        })
+        }, board.value)
       ) {
         if (pieceRef === currentPiece1) {
           lockPiece1()
@@ -368,7 +370,7 @@ export const useGameStore = defineStore("game", () => {
     }
 
     // Check board collision first
-    if (checkCollisionWithBoard(piece, newPosition)) {
+    if (checkCollisionWithBoard(piece, newPosition, board.value)) {
       return true
     }
 
@@ -387,24 +389,10 @@ export const useGameStore = defineStore("game", () => {
         x: otherPiece.position.x,
         y: otherPiece.position.y + 1,
       }
-      return checkCollisionWithBoard(otherPiece, otherNewPosition)
+      return checkCollisionWithBoard(otherPiece, otherNewPosition, board.value)
     }
 
     return false
-  }
-
-  function rotateMatrix(matrix: boolean[][]): boolean[][] {
-    const rows = matrix.length
-    const cols = matrix[0].length
-    const rotated = Array(cols).fill(null).map(() => Array(rows).fill(false))
-
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        rotated[x][rows - 1 - y] = matrix[y][x]
-      }
-    }
-
-    return rotated
   }
 
   function moveAllPiecesDown() {
@@ -420,6 +408,7 @@ export const useGameStore = defineStore("game", () => {
       const boardCollision1 = checkCollisionWithBoard(
         currentPiece1.value,
         newPosition1,
+        board.value,
       )
       const pieceCollision1 = checkCollisionBetweenPieces({
         ...currentPiece1.value,
@@ -446,6 +435,7 @@ export const useGameStore = defineStore("game", () => {
       const boardCollision2 = checkCollisionWithBoard(
         currentPiece2.value,
         newPosition2,
+        board.value,
       )
       const pieceCollision2 = checkCollisionBetweenPieces({
         ...currentPiece2.value,
@@ -463,72 +453,25 @@ export const useGameStore = defineStore("game", () => {
     }
   }
 
-  function checkCollisionWithBoard(
-    piece: Tetromino,
-    position: Position,
-  ): boolean {
-    for (let y = 0; y < piece.shape.length; y++) {
-      for (let x = 0; x < piece.shape[y].length; x++) {
-        if (piece.shape[y][x]) {
-          const newX = position.x + x
-          const newY = position.y + y
-
-          // Check if outside board boundaries
-          if (
-            newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT
-          ) {
-            return true
-          }
-
-          // Check if collides with another piece on the board
-          if (newY >= 0 && board.value[newY][newX].filled) {
-            return true
-          }
-        }
-      }
-    }
-    return false
-  }
-
-  function checkCollisionBetweenPieces(
-    piece1: Tetromino,
-    piece2: Tetromino | null,
-  ): boolean {
-    if (!piece2) return false
-
-    for (let y1 = 0; y1 < piece1.shape.length; y1++) {
-      for (let x1 = 0; x1 < piece1.shape[y1].length; x1++) {
-        if (piece1.shape[y1][x1]) {
-          const pos1X = piece1.position.x + x1
-          const pos1Y = piece1.position.y + y1
-
-          for (let y2 = 0; y2 < piece2.shape.length; y2++) {
-            for (let x2 = 0; x2 < piece2.shape[y2].length; x2++) {
-              if (piece2.shape[y2][x2]) {
-                const pos2X = piece2.position.x + x2
-                const pos2Y = piece2.position.y + y2
-
-                if (pos1X === pos2X && pos1Y === pos2Y) {
-                  return true // Collision detected
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    return false
-  }
-
   // Lock piece 1 and spawn a new one
   function lockPiece1() {
     if (!currentPiece1.value) return
 
     // Add the piece to the board
-    lockPieceToBoard(currentPiece1.value)
+    board.value = lockPieceToBoard(currentPiece1.value, board.value)
 
     // Check for cleared lines
-    const linesCleared = clearLines()
+    const result = clearLines(board.value, level.value)
+    board.value = result.newBoard
+    lines.value += result.linesCleared
+    score.value += result.scoreToAdd
+
+    // Update level based on lines cleared
+    const newLevel = Math.floor(lines.value / 10) + 1
+    if (newLevel !== level.value) {
+      level.value = newLevel
+      restartGameLoop()
+    }
 
     // Spawn a new piece 1 only if we're not in game over state
     if (!gameOver.value) {
@@ -541,84 +484,25 @@ export const useGameStore = defineStore("game", () => {
     if (!currentPiece2.value) return
 
     // Add the piece to the board
-    lockPieceToBoard(currentPiece2.value)
+    board.value = lockPieceToBoard(currentPiece2.value, board.value)
 
     // Check for cleared lines
-    const linesCleared = clearLines()
+    const result = clearLines(board.value, level.value)
+    board.value = result.newBoard
+    lines.value += result.linesCleared
+    score.value += result.scoreToAdd
+
+    // Update level based on lines cleared
+    const newLevel = Math.floor(lines.value / 10) + 1
+    if (newLevel !== level.value) {
+      level.value = newLevel
+      restartGameLoop()
+    }
 
     // Spawn a new piece 2 only if we're not in game over state
     if (!gameOver.value) {
       spawnPiece2()
     }
-  }
-
-  function lockPieceToBoard(piece: Tetromino) {
-    // Add the piece to the board
-    for (let y = 0; y < piece.shape.length; y++) {
-      for (let x = 0; x < piece.shape[y].length; x++) {
-        if (piece.shape[y][x]) {
-          const boardX = piece.position.x + x
-          const boardY = piece.position.y + y
-
-          if (
-            boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 &&
-            boardX < BOARD_WIDTH
-          ) {
-            board.value[boardY][boardX] = {
-              filled: true,
-              color: piece.color,
-            }
-          }
-        }
-      }
-    }
-  }
-
-  function clearLines(): number {
-    let linesCleared = 0
-
-    for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
-      const isLineComplete = board.value[y].every((cell) => cell.filled)
-
-      if (isLineComplete) {
-        linesCleared++
-
-        // Move all lines above down
-        for (let y2 = y; y2 > 0; y2--) {
-          board.value[y2] = [...board.value[y2 - 1]]
-        }
-
-        // Create empty top line
-        board.value[0] = Array(BOARD_WIDTH).fill(null).map(() => ({
-          filled: false,
-          color: "",
-        }))
-
-        y++ // Check the same line again as it's now filled with the line above
-      }
-    }
-
-    if (linesCleared > 0) {
-      // Update score and level
-      lines.value += linesCleared
-      score.value += calculateScore(linesCleared)
-      level.value = Math.floor(lines.value / 10) + 1
-
-      // If level changed, restart game loop with new interval
-      if (
-        Math.floor((lines.value - linesCleared) / 10) !==
-          Math.floor(lines.value / 10)
-      ) {
-        restartGameLoop()
-      }
-    }
-
-    return linesCleared
-  }
-
-  function calculateScore(linesCleared: number): number {
-    const linePoints = [0, 40, 100, 300, 1200]
-    return linePoints[linesCleared] * level.value
   }
 
   function startGameLoop() {

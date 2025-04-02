@@ -1,135 +1,129 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
-import { useGameStore } from '@/stores/game';
-import Board from './Board.vue';
-import NextPiece from './NextPiece.vue';
+import { onMounted, onUnmounted } from 'vue'
+import { useGameStore } from '@/stores/game'
+import { useMobileDetection } from '@/composables/useMobileDetection.ts'
+import Board from './Board.vue'
+import NextPiece from './NextPiece.vue'
 import ScoreBoard from './ScoreBoard.vue'
 import IconGithub from "@/components/icons/IconGitHub.vue"
 
-const gameStore = useGameStore();
-const isMobile = ref(window.innerWidth <= 768);
+const gameStore = useGameStore()
+const { isMobile } = useMobileDetection()
 
 function handleKeyDown(event: KeyboardEvent) {
-    if (gameStore.gameOver) return;
+    if (gameStore.gameOver) return
 
     // Left hand controls for left piece (WASD)
     switch (event.key.toLowerCase()) {
         case 'a':
-            gameStore.movePiece1(-1, 0);
-            event.preventDefault();
-            break;
+            gameStore.movePiece1(-1, 0)
+            event.preventDefault()
+            break
         case 'd':
-            gameStore.movePiece1(1, 0);
-            event.preventDefault();
-            break;
+            gameStore.movePiece1(1, 0)
+            event.preventDefault()
+            break
         case 's':
-            gameStore.movePiece1(0, 1);
-            event.preventDefault();
-            break;
+            gameStore.movePiece1(0, 1)
+            event.preventDefault()
+            break
         case 'w':
-            gameStore.rotatePiece1();
-            event.preventDefault();
-            break;
+            gameStore.rotatePiece1()
+            event.preventDefault()
+            break
         case 'q':
-            gameStore.hardDropPiece1();
-            event.preventDefault();
-            break;
+            gameStore.hardDropPiece1()
+            event.preventDefault()
+            break
         case 'p':
-            gameStore.togglePause();
-            event.preventDefault();
-            break;
+            gameStore.togglePause()
+            event.preventDefault()
+            break
     }
 
     // Right hand controls for right piece (Arrow keys)
     switch (event.key) {
         case 'ArrowLeft':
-            gameStore.movePiece2(-1, 0);
-            event.preventDefault();
-            break;
+            gameStore.movePiece2(-1, 0)
+            event.preventDefault()
+            break
         case 'ArrowRight':
-            gameStore.movePiece2(1, 0);
-            event.preventDefault();
-            break;
+            gameStore.movePiece2(1, 0)
+            event.preventDefault()
+            break
         case 'ArrowDown':
-            gameStore.movePiece2(0, 1);
-            event.preventDefault();
-            break;
+            gameStore.movePiece2(0, 1)
+            event.preventDefault()
+            break
         case 'ArrowUp':
-            gameStore.rotatePiece2();
-            event.preventDefault();
-            break;
+            gameStore.rotatePiece2()
+            event.preventDefault()
+            break
         case ' ': // Space
-            gameStore.hardDropPiece2();
-            event.preventDefault();
-            break;
+            gameStore.hardDropPiece2()
+            event.preventDefault()
+            break
     }
 }
 
 // Mobile button controls
 function moveLeft(piece: 'left' | 'right') {
-    if (gameStore.gameOver || gameStore.paused) return;
+    if (gameStore.gameOver || gameStore.paused) return
     if (piece === 'left') {
-        gameStore.movePiece1(-1, 0);
+        gameStore.movePiece1(-1, 0)
     } else {
-        gameStore.movePiece2(-1, 0);
+        gameStore.movePiece2(-1, 0)
     }
 }
 
 function moveRight(piece: 'left' | 'right') {
-    if (gameStore.gameOver || gameStore.paused) return;
+    if (gameStore.gameOver || gameStore.paused) return
     if (piece === 'left') {
-        gameStore.movePiece1(1, 0);
+        gameStore.movePiece1(1, 0)
     } else {
-        gameStore.movePiece2(1, 0);
+        gameStore.movePiece2(1, 0)
     }
 }
 
 function moveDown(piece: 'left' | 'right') {
-    if (gameStore.gameOver || gameStore.paused) return;
+    if (gameStore.gameOver || gameStore.paused) return
     if (piece === 'left') {
-        gameStore.movePiece1(0, 1);
+        gameStore.movePiece1(0, 1)
     } else {
-        gameStore.movePiece2(0, 1);
+        gameStore.movePiece2(0, 1)
     }
 }
 
 function rotate(piece: 'left' | 'right') {
-    if (gameStore.gameOver || gameStore.paused) return;
+    if (gameStore.gameOver || gameStore.paused) return
     if (piece === 'left') {
-        gameStore.rotatePiece1();
+        gameStore.rotatePiece1()
     } else {
-        gameStore.rotatePiece2();
+        gameStore.rotatePiece2()
     }
 }
 
 function hardDrop(piece: 'left' | 'right') {
-    if (gameStore.gameOver || gameStore.paused) return;
+    if (gameStore.gameOver || gameStore.paused) return
     if (piece === 'left') {
-        gameStore.hardDropPiece1();
+        gameStore.hardDropPiece1()
     } else {
-        gameStore.hardDropPiece2();
+        gameStore.hardDropPiece2()
     }
 }
 
 function startGame() {
-    gameStore.startGame();
-}
-
-function checkMobile() {
-    isMobile.value = window.innerWidth <= 768;
+    gameStore.startGame()
 }
 
 onMounted(() => {
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('resize', checkMobile);
     // Start the game automatically when component is mounted
     startGame();
-    checkMobile();
 });
 
 onUnmounted(() => {
     window.removeEventListener('keydown', handleKeyDown);
-    window.removeEventListener('resize', checkMobile);
 });
 </script>
 

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
-import { useGameStore } from '@/stores/game';
+import { computed, ref, watch } from 'vue'
+import { useGameStore } from '@/stores/game'
+import { useMobileDetection } from '@/composables/useMobileDetection.ts'
 
 const gameStore = useGameStore();
-const isMobile = ref(window.innerWidth <= 768);
+const { isMobile } = useMobileDetection();
 const cellSize = ref(20);
 
 const nextPiece1Display = computed(() => {
@@ -16,19 +17,13 @@ const nextPiece2Display = computed(() => {
     return gameStore.nextPiece2.shape;
 });
 
-function checkMobile() {
-    isMobile.value = window.innerWidth <= 768;
+// Update cell size when mobile status changes
+function updateCellSize() {
     cellSize.value = isMobile.value ? 16 : 20;
 }
 
-onMounted(() => {
-    window.addEventListener('resize', checkMobile);
-    checkMobile();
-});
-
-onUnmounted(() => {
-    window.removeEventListener('resize', checkMobile);
-});
+// Watch for mobile changes to update cell size
+watch(isMobile, updateCellSize, { immediate: true });
 </script>
 
 <template>
@@ -38,12 +33,11 @@ onUnmounted(() => {
             <div class="piece-preview">
                 <div v-for="(row, rowIndex) in nextPiece1Display" :key="`row1-${rowIndex}`" class="preview-row">
                     <div v-for="(cell, cellIndex) in row" :key="`cell1-${rowIndex}-${cellIndex}`" class="preview-cell"
-                        :class="{ filled: cell, 'left-preview': cell }"
-                        :style="{
+                        :class="{ filled: cell, 'left-preview': cell }" :style="{
                             backgroundColor: cell ? gameStore.nextPiece1?.color : 'transparent',
                             width: `${cellSize}px`,
                             height: `${cellSize}px`
-                         }"></div>
+                        }"></div>
                 </div>
             </div>
         </div>
@@ -53,8 +47,7 @@ onUnmounted(() => {
             <div class="piece-preview">
                 <div v-for="(row, rowIndex) in nextPiece2Display" :key="`row2-${rowIndex}`" class="preview-row">
                     <div v-for="(cell, cellIndex) in row" :key="`cell2-${rowIndex}-${cellIndex}`" class="preview-cell"
-                        :class="{ filled: cell, 'right-preview': cell }"
-                        :style="{
+                        :class="{ filled: cell, 'right-preview': cell }" :style="{
                             backgroundColor: cell ? gameStore.nextPiece2?.color : 'transparent',
                             width: `${cellSize}px`,
                             height: `${cellSize}px`
