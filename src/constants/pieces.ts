@@ -16,18 +16,18 @@ export const PIECE_METADATA = {
       right: "D",
       down: "S",
       rotate: "W",
-      hardDrop: "Q",
+      hardDrop: "LShift",
     },
   },
   [PIECE_IDS.RIGHT]: {
     offsetX: 3,   // Initial offset for right piece
     highlight: "#e67e22", // Orange highlight
     controls: {
-      left: "←",
-      right: "→",
-      down: "↓",
-      rotate: "↑",
-      hardDrop: "Space",
+      left: "L",
+      right: "'",
+      down: ";",
+      rotate: "P",
+      hardDrop: "RShift",
     },
   },
 } as const

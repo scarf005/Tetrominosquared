@@ -1,68 +1,73 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
-import { useGameStore } from '@/stores/game'
-import { useMobileDetection } from '@/composables/useMobileDetection.ts'
-import { PIECE_IDS, PIECE_METADATA, type PieceId } from '@/constants/pieces.ts'
-import Board from './Board.vue'
-import NextPiece from './NextPiece.vue'
-import ScoreBoard from './ScoreBoard.vue'
-import IconGithub from "@/components/icons/IconGitHub.vue"
+import { onMounted, onUnmounted } from "vue"
+import { useGameStore } from "@/stores/game"
+import { useMobileDetection } from "@/composables/useMobileDetection.ts"
+import { PIECE_IDS, PIECE_METADATA, type PieceId } from "@/constants/pieces.ts"
+import Board from "./Board.vue"
+import NextPiece from "./NextPiece.vue"
+import ScoreBoard from "./ScoreBoard.vue"
+import Controls from "./Controls.vue"
 
+import IconGithub from "@/components/icons/IconGitHub.vue"
 const gameStore = useGameStore()
 const { isMobile } = useMobileDetection()
+
+// Map from display key names to actual event.key values
+const KEY_MAPPING: Record<string, string> = {
+    "←": "ArrowLeft",
+    "→": "ArrowRight",
+    "↓": "ArrowDown",
+    "↑": "ArrowUp",
+    "Space": " ",
+}
+
+// Create a mapping from keyboard events to piece actions
+const keyActionMap = Object.entries(PIECE_IDS).reduce((map, [_, pieceId]) => {
+    const metadata = PIECE_METADATA[pieceId as PieceId]
+
+    Object.entries(metadata.controls).forEach(([action, controlKey]) => {
+        const eventKey = KEY_MAPPING[controlKey as string] || (controlKey as string).toLowerCase()
+        map.set(eventKey, { pieceId, action })
+    })
+
+    return map
+}, new Map<string, { pieceId: PieceId, action: string }>())
 
 function handleKeyDown(event: KeyboardEvent) {
     if (gameStore.gameOver) return
 
-    // Left hand controls for left piece (WASD)
-    switch (event.key.toLowerCase()) {
-        case 'a':
-            gameStore.movePiece(PIECE_IDS.LEFT, -1, 0)
-            event.preventDefault()
-            break
-        case 'd':
-            gameStore.movePiece(PIECE_IDS.LEFT, 1, 0)
-            event.preventDefault()
-            break
-        case 's':
-            gameStore.movePiece(PIECE_IDS.LEFT, 0, 1)
-            event.preventDefault()
-            break
-        case 'w':
-            gameStore.rotatePiece(PIECE_IDS.LEFT)
-            event.preventDefault()
-            break
-        case 'q':
-            gameStore.hardDropPiece(PIECE_IDS.LEFT)
-            event.preventDefault()
-            break
-        case 'p':
-            gameStore.togglePause()
-            event.preventDefault()
-            break
+    // Special case for pause which isn't in metadata
+    if (event.key.toLowerCase() === " ") {
+        gameStore.togglePause()
+        event.preventDefault()
+        return
     }
+    const key = event.key === "Shift" ?
+        `${event.location === KeyboardEvent.DOM_KEY_LOCATION_LEFT ? "L" : "R"}Shift` :
+        event.key
 
-    // Right hand controls for right piece (Arrow keys)
-    switch (event.key) {
-        case 'ArrowLeft':
-            gameStore.movePiece(PIECE_IDS.RIGHT, -1, 0)
-            event.preventDefault()
+    const keyAction = keyActionMap.get(key.toLowerCase())
+    if (!keyAction) return
+
+    const { pieceId, action } = keyAction
+    event.preventDefault()
+
+    // Execute the action based on the key mapping
+    switch (action) {
+        case "left":
+            gameStore.movePiece(pieceId, -1, 0)
             break
-        case 'ArrowRight':
-            gameStore.movePiece(PIECE_IDS.RIGHT, 1, 0)
-            event.preventDefault()
+        case "right":
+            gameStore.movePiece(pieceId, 1, 0)
             break
-        case 'ArrowDown':
-            gameStore.movePiece(PIECE_IDS.RIGHT, 0, 1)
-            event.preventDefault()
+        case "down":
+            gameStore.movePiece(pieceId, 0, 1)
             break
-        case 'ArrowUp':
-            gameStore.rotatePiece(PIECE_IDS.RIGHT)
-            event.preventDefault()
+        case "rotate":
+            gameStore.rotatePiece(pieceId)
             break
-        case ' ': // Space
-            gameStore.hardDropPiece(PIECE_IDS.RIGHT)
-            event.preventDefault()
+        case "hardDrop":
+            gameStore.hardDropPiece(pieceId)
             break
     }
 }
@@ -106,6 +111,7 @@ onMounted(() => {
 onUnmounted(() => {
     window.removeEventListener('keydown', handleKeyDown);
 });
+
 </script>
 
 <template>
@@ -172,21 +178,11 @@ onUnmounted(() => {
             <div class="controls-container">
                 <div class="left-controls">
                     <h4>Left Piece (Blue)</h4>
-                    <ul>
-                        <li><strong>A/D:</strong> Move left/right</li>
-                        <li><strong>S:</strong> Soft drop</li>
-                        <li><strong>W:</strong> Rotate</li>
-                        <li><strong>Q:</strong> Hard drop</li>
-                    </ul>
+                    <Controls :pieceId="PIECE_IDS.LEFT" />
                 </div>
                 <div class="right-controls">
                     <h4>Right Piece (Orange)</h4>
-                    <ul>
-                        <li><strong>←/→:</strong> Move left/right</li>
-                        <li><strong>↓:</strong> Soft drop</li>
-                        <li><strong>↑:</strong> Rotate</li>
-                        <li><strong>Space:</strong> Hard drop</li>
-                    </ul>
+                    <Controls :pieceId="PIECE_IDS.RIGHT" />
                 </div>
             </div>
             <div class="shared-controls">
