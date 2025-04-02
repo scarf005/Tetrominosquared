@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useGameStore } from '@/stores/game';
 import Board from './Board.vue';
 import NextPiece from './NextPiece.vue';
@@ -7,6 +7,7 @@ import ScoreBoard from './ScoreBoard.vue'
 import IconGithub from "@/components/icons/IconGitHub.vue"
 
 const gameStore = useGameStore();
+const isMobile = ref(window.innerWidth <= 768);
 
 function handleKeyDown(event: KeyboardEvent) {
     if (gameStore.gameOver) return;
@@ -64,25 +65,107 @@ function handleKeyDown(event: KeyboardEvent) {
     }
 }
 
+// Mobile button controls
+function moveLeft(piece: 'left' | 'right') {
+    if (gameStore.gameOver || gameStore.paused) return;
+    if (piece === 'left') {
+        gameStore.movePiece1(-1, 0);
+    } else {
+        gameStore.movePiece2(-1, 0);
+    }
+}
+
+function moveRight(piece: 'left' | 'right') {
+    if (gameStore.gameOver || gameStore.paused) return;
+    if (piece === 'left') {
+        gameStore.movePiece1(1, 0);
+    } else {
+        gameStore.movePiece2(1, 0);
+    }
+}
+
+function moveDown(piece: 'left' | 'right') {
+    if (gameStore.gameOver || gameStore.paused) return;
+    if (piece === 'left') {
+        gameStore.movePiece1(0, 1);
+    } else {
+        gameStore.movePiece2(0, 1);
+    }
+}
+
+function rotate(piece: 'left' | 'right') {
+    if (gameStore.gameOver || gameStore.paused) return;
+    if (piece === 'left') {
+        gameStore.rotatePiece1();
+    } else {
+        gameStore.rotatePiece2();
+    }
+}
+
+function hardDrop(piece: 'left' | 'right') {
+    if (gameStore.gameOver || gameStore.paused) return;
+    if (piece === 'left') {
+        gameStore.hardDropPiece1();
+    } else {
+        gameStore.hardDropPiece2();
+    }
+}
+
 function startGame() {
     gameStore.startGame();
 }
 
+function checkMobile() {
+    isMobile.value = window.innerWidth <= 768;
+}
+
 onMounted(() => {
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', checkMobile);
     // Start the game automatically when component is mounted
     startGame();
+    checkMobile();
 });
 
 onUnmounted(() => {
     window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('resize', checkMobile);
 });
 </script>
 
 <template>
     <div class="tetris-game">
-        <div class="game-container">
-            <Board />
+        <div class="game-container" :class="{ 'mobile-layout': isMobile }">
+            <div class="board-container">
+                <Board />
+
+                <div class="mobile-controls" v-if="isMobile">
+                    <!-- Left piece controls -->
+                    <div class="control-section left-section">
+                        <div class="piece-label blue-text">Blue Piece</div>
+                        <div class="direction-buttons">
+                            <button class="control-btn rotate-btn" @click="rotate('left')">↻</button>
+                            <button class="control-btn" @click="moveLeft('left')">←</button>
+                            <button class="control-btn" @click="moveDown('left')">↓</button>
+                            <button class="control-btn" @click="moveRight('left')">→</button>
+                            <button class="control-btn hard-drop-btn blue-btn" @click="hardDrop('left')">⬇︎</button>
+                        </div>
+                    </div>
+
+                    <!-- Right piece controls -->
+                    <div class="control-section right-section">
+                        <div class="piece-label orange-text">Orange Piece</div>
+                        <div class="direction-buttons">
+                            <button class="control-btn rotate-btn" @click="rotate('right')">↻</button>
+                            <button class="control-btn" @click="moveLeft('right')">←</button>
+                            <button class="control-btn" @click="moveDown('right')">↓</button>
+                            <button class="control-btn" @click="moveRight('right')">→</button>
+                            <button class="control-btn hard-drop-btn orange-btn" @click="hardDrop('right')">⬇︎</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="side-panel">
                 <NextPiece />
                 <ScoreBoard />
@@ -107,7 +190,7 @@ onUnmounted(() => {
             <div class="status-message" v-else-if="gameStore.paused">Paused</div>
         </div>
 
-        <div class="keyboard-controls">
+        <div class="keyboard-controls" v-if="!isMobile">
             <h3>Dual-Hand Controls</h3>
             <div class="controls-container">
                 <div class="left-controls">
@@ -132,7 +215,6 @@ onUnmounted(() => {
             <div class="shared-controls">
                 <li><strong>P:</strong> Pause</li>
             </div>
-
         </div>
     </div>
 </template>
@@ -144,10 +226,22 @@ onUnmounted(() => {
     align-items: center;
     margin: 20px auto;
     position: relative;
+    width: 100%;
+    max-width: 800px;
 }
 
 .game-container {
     display: flex;
+    width: 100%;
+}
+
+.mobile-layout {
+    flex-direction: column;
+    align-items: center;
+}
+
+.board-container {
+    position: relative;
 }
 
 .side-panel {
@@ -265,5 +359,150 @@ h4 {
 
 .github-link:hover {
     color: white;
+}
+
+/* Mobile controls with buttons instead of swipe */
+.mobile-controls {
+    display: flex;
+    width: 100%;
+    margin-top: 15px;
+    gap: 15px;
+    padding: 10px 0;
+}
+
+.control-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.piece-label {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.blue-text {
+    color: #3498db;
+}
+
+.orange-text {
+    color: #e67e22;
+}
+
+.direction-buttons {
+    display: grid;
+    grid-template-areas:
+        ".  rotate  ."
+        "left down right"
+        ".  drop   .";
+    grid-gap: 5px;
+}
+
+.control-btn {
+    width: 50px;
+    height: 50px;
+    background-color: #333;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.control-btn:active {
+    background-color: #555;
+    transform: scale(0.95);
+}
+
+.rotate-btn {
+    grid-area: rotate;
+}
+
+.hard-drop-btn {
+    grid-area: drop;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.blue-btn {
+    background-color: #2980b9;
+}
+
+.orange-btn {
+    background-color: #d35400;
+}
+
+.direction-buttons button:nth-child(2) {
+    grid-area: left;
+}
+
+.direction-buttons button:nth-child(3) {
+    grid-area: down;
+}
+
+.direction-buttons button:nth-child(4) {
+    grid-area: right;
+}
+
+.direction-buttons button:nth-child(5) {
+    grid-area: drop;
+}
+
+@media (max-width: 768px) {
+    .tetris-game {
+        margin: 10px auto;
+    }
+
+    .side-panel {
+        margin-top: 15px;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .controls {
+        margin: 15px 10px;
+        flex-direction: row;
+    }
+
+    .btn {
+        margin: 0 5px;
+        font-size: 14px;
+        padding: 8px 12px;
+    }
+
+    .github-link {
+        width: 100%;
+        justify-content: center;
+        margin: 15px 0;
+    }
+
+    .status-message {
+        font-size: 24px;
+        padding: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .mobile-controls {
+        gap: 5px;
+    }
+
+    .control-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+
+    .hard-drop-btn {
+        font-size: 24px;
+    }
 }
 </style>
