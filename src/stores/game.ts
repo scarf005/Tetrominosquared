@@ -42,6 +42,12 @@ export const useGameStore = defineStore("game", () => {
     [PIECE_IDS.RIGHT, null]
   ]))
 
+  // Add drop timers for each piece
+  const pieceDropCounters = ref<Map<PieceId, number>>(new Map([
+    [PIECE_IDS.LEFT, 0],
+    [PIECE_IDS.RIGHT, 0]
+  ]))
+
   const score = ref(0)
   const level = ref(1)
   const lines = ref(0)
@@ -49,8 +55,21 @@ export const useGameStore = defineStore("game", () => {
   const paused = ref(false)
   const gameLoopInterval = ref<number | null>(null)
 
-  // Getters
-  const dropInterval = computed(() => Math.max(100, 1000 - level.value * 100))
+  // Add a constant for the game loop refresh rate (60fps)
+  const GAME_LOOP_INTERVAL = 16 // 16ms = ~60fps
+
+  // Define different base drop intervals for each piece
+  const BASE_DROP_INTERVALS = {
+    [PIECE_IDS.LEFT]: 1091,
+    [PIECE_IDS.RIGHT]: 977,
+  } as const
+
+  // Individual drop interval calculation for each piece
+  const getDropInterval = (pieceId: PieceId) => {
+    const baseInterval = BASE_DROP_INTERVALS[pieceId]
+    // Still apply level-based speed increases to both pieces
+    return Math.max(100, baseInterval - level.value * 100)
+  }
 
   // Compute ghost positions for all pieces
   const ghostPiecePositions = computed(() => {
@@ -116,6 +135,7 @@ export const useGameStore = defineStore("game", () => {
     Object.values(PIECE_IDS).forEach(id => {
       currentPieces.value.set(id, null)
       nextPieces.value.set(id, null)
+      pieceDropCounters.value.set(id, 0)
     })
 
     score.value = 0
@@ -159,6 +179,9 @@ export const useGameStore = defineStore("game", () => {
       gameOver.value = true
       stopGameLoop()
     }
+
+    // Reset the piece drop counter when spawning a new piece
+    pieceDropCounters.value.set(pieceId, 0)
   }
 
   // Generic movement function for any piece
@@ -364,31 +387,45 @@ export const useGameStore = defineStore("game", () => {
       const piece = currentPieces.value.get(pieceId)
       if (!piece) return
 
-      const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
-      const otherPiece = currentPieces.value.get(otherPieceId)
+      // Get piece-specific drop interval
+      const intervalForPiece = getDropInterval(pieceId)
 
-      const newPosition = {
-        x: piece.position.x,
-        y: piece.position.y + 1,
-      }
+      // Increment the drop counter for this piece
+      const currentCount = pieceDropCounters.value.get(pieceId) || 0
+      const newCount = currentCount + GAME_LOOP_INTERVAL
+      pieceDropCounters.value.set(pieceId, newCount)
 
-      const boardCollision = checkCollisionWithBoard(
-        piece,
-        newPosition,
-        board.value,
-      )
+      // Only move the piece down if it's time to do so based on the drop interval
+      if (newCount >= intervalForPiece) {
+        // Reset counter (keep remainder for more accurate timing)
+        pieceDropCounters.value.set(pieceId, newCount % intervalForPiece)
 
-      const pieceCollision = checkCollisionBetweenPieces(
-        { ...piece, position: newPosition },
-        otherPiece,
-      )
+        const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+        const otherPiece = currentPieces.value.get(otherPieceId)
 
-      if (!boardCollision && !pieceCollision) {
-        piece.position = newPosition
-      } else {
-        // Only lock if it hit the board, not another piece
-        if (boardCollision) {
-          lockPiece(pieceId)
+        const newPosition = {
+          x: piece.position.x,
+          y: piece.position.y + 1,
+        }
+
+        const boardCollision = checkCollisionWithBoard(
+          piece,
+          newPosition,
+          board.value,
+        )
+
+        const pieceCollision = checkCollisionBetweenPieces(
+          { ...piece, position: newPosition },
+          otherPiece,
+        )
+
+        if (!boardCollision && !pieceCollision) {
+          piece.position = newPosition
+        } else {
+          // Only lock if it hit the board, not another piece
+          if (boardCollision) {
+            lockPiece(pieceId)
+          }
         }
       }
     })
@@ -424,11 +461,12 @@ export const useGameStore = defineStore("game", () => {
   function startGameLoop() {
     if (gameLoopInterval.value) return
 
+    // Set to run at ~60fps instead of 1ms
     gameLoopInterval.value = window.setInterval(() => {
       if (!paused.value && !gameOver.value) {
         moveAllPiecesDown()
       }
-    }, dropInterval.value)
+    }, GAME_LOOP_INTERVAL)
   }
 
   function stopGameLoop() {
@@ -460,6 +498,7 @@ export const useGameStore = defineStore("game", () => {
     currentPieces,
     nextPieces,
     ghostPiecePositions,
+    pieceDropCounters, // Export the drop counters if needed
 
     // Actions
     startGame,
