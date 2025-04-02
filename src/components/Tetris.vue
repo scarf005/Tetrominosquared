@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useMobileDetection } from '@/composables/useMobileDetection.ts'
+import { PIECE_IDS, PIECE_METADATA, type PieceId } from '@/constants/pieces.ts'
 import Board from './Board.vue'
 import NextPiece from './NextPiece.vue'
 import ScoreBoard from './ScoreBoard.vue'
@@ -16,23 +17,23 @@ function handleKeyDown(event: KeyboardEvent) {
     // Left hand controls for left piece (WASD)
     switch (event.key.toLowerCase()) {
         case 'a':
-            gameStore.movePiece1(-1, 0)
+            gameStore.movePiece(PIECE_IDS.LEFT, -1, 0)
             event.preventDefault()
             break
         case 'd':
-            gameStore.movePiece1(1, 0)
+            gameStore.movePiece(PIECE_IDS.LEFT, 1, 0)
             event.preventDefault()
             break
         case 's':
-            gameStore.movePiece1(0, 1)
+            gameStore.movePiece(PIECE_IDS.LEFT, 0, 1)
             event.preventDefault()
             break
         case 'w':
-            gameStore.rotatePiece1()
+            gameStore.rotatePiece(PIECE_IDS.LEFT)
             event.preventDefault()
             break
         case 'q':
-            gameStore.hardDropPiece1()
+            gameStore.hardDropPiece(PIECE_IDS.LEFT)
             event.preventDefault()
             break
         case 'p':
@@ -44,72 +45,52 @@ function handleKeyDown(event: KeyboardEvent) {
     // Right hand controls for right piece (Arrow keys)
     switch (event.key) {
         case 'ArrowLeft':
-            gameStore.movePiece2(-1, 0)
+            gameStore.movePiece(PIECE_IDS.RIGHT, -1, 0)
             event.preventDefault()
             break
         case 'ArrowRight':
-            gameStore.movePiece2(1, 0)
+            gameStore.movePiece(PIECE_IDS.RIGHT, 1, 0)
             event.preventDefault()
             break
         case 'ArrowDown':
-            gameStore.movePiece2(0, 1)
+            gameStore.movePiece(PIECE_IDS.RIGHT, 0, 1)
             event.preventDefault()
             break
         case 'ArrowUp':
-            gameStore.rotatePiece2()
+            gameStore.rotatePiece(PIECE_IDS.RIGHT)
             event.preventDefault()
             break
         case ' ': // Space
-            gameStore.hardDropPiece2()
+            gameStore.hardDropPiece(PIECE_IDS.RIGHT)
             event.preventDefault()
             break
     }
 }
 
 // Mobile button controls
-function moveLeft(piece: 'left' | 'right') {
+function moveLeft(pieceId: PieceId) {
     if (gameStore.gameOver || gameStore.paused) return
-    if (piece === 'left') {
-        gameStore.movePiece1(-1, 0)
-    } else {
-        gameStore.movePiece2(-1, 0)
-    }
+    gameStore.movePiece(pieceId, -1, 0)
 }
 
-function moveRight(piece: 'left' | 'right') {
+function moveRight(pieceId: PieceId) {
     if (gameStore.gameOver || gameStore.paused) return
-    if (piece === 'left') {
-        gameStore.movePiece1(1, 0)
-    } else {
-        gameStore.movePiece2(1, 0)
-    }
+    gameStore.movePiece(pieceId, 1, 0)
 }
 
-function moveDown(piece: 'left' | 'right') {
+function moveDown(pieceId: PieceId) {
     if (gameStore.gameOver || gameStore.paused) return
-    if (piece === 'left') {
-        gameStore.movePiece1(0, 1)
-    } else {
-        gameStore.movePiece2(0, 1)
-    }
+    gameStore.movePiece(pieceId, 0, 1)
 }
 
-function rotate(piece: 'left' | 'right') {
+function rotate(pieceId: PieceId) {
     if (gameStore.gameOver || gameStore.paused) return
-    if (piece === 'left') {
-        gameStore.rotatePiece1()
-    } else {
-        gameStore.rotatePiece2()
-    }
+    gameStore.rotatePiece(pieceId)
 }
 
-function hardDrop(piece: 'left' | 'right') {
+function hardDrop(pieceId: PieceId) {
     if (gameStore.gameOver || gameStore.paused) return
-    if (piece === 'left') {
-        gameStore.hardDropPiece1()
-    } else {
-        gameStore.hardDropPiece2()
-    }
+    gameStore.hardDropPiece(pieceId)
 }
 
 function startGame() {
@@ -138,11 +119,12 @@ onUnmounted(() => {
                     <div class="control-section left-section">
                         <div class="piece-label blue-text">Blue Piece</div>
                         <div class="direction-buttons">
-                            <button class="control-btn rotate-btn" @click="rotate('left')">↻</button>
-                            <button class="control-btn" @click="moveLeft('left')">←</button>
-                            <button class="control-btn" @click="moveDown('left')">↓</button>
-                            <button class="control-btn" @click="moveRight('left')">→</button>
-                            <button class="control-btn hard-drop-btn blue-btn" @click="hardDrop('left')">⬇︎</button>
+                            <button class="control-btn rotate-btn" @click="rotate(PIECE_IDS.LEFT)">↻</button>
+                            <button class="control-btn" @click="moveLeft(PIECE_IDS.LEFT)">←</button>
+                            <button class="control-btn" @click="moveDown(PIECE_IDS.LEFT)">↓</button>
+                            <button class="control-btn" @click="moveRight(PIECE_IDS.LEFT)">→</button>
+                            <button class="control-btn hard-drop-btn blue-btn"
+                                @click="hardDrop(PIECE_IDS.LEFT)">⬇︎</button>
                         </div>
                     </div>
 
@@ -150,11 +132,12 @@ onUnmounted(() => {
                     <div class="control-section right-section">
                         <div class="piece-label orange-text">Orange Piece</div>
                         <div class="direction-buttons">
-                            <button class="control-btn rotate-btn" @click="rotate('right')">↻</button>
-                            <button class="control-btn" @click="moveLeft('right')">←</button>
-                            <button class="control-btn" @click="moveDown('right')">↓</button>
-                            <button class="control-btn" @click="moveRight('right')">→</button>
-                            <button class="control-btn hard-drop-btn orange-btn" @click="hardDrop('right')">⬇︎</button>
+                            <button class="control-btn rotate-btn" @click="rotate(PIECE_IDS.RIGHT)">↻</button>
+                            <button class="control-btn" @click="moveLeft(PIECE_IDS.RIGHT)">←</button>
+                            <button class="control-btn" @click="moveDown(PIECE_IDS.RIGHT)">↓</button>
+                            <button class="control-btn" @click="moveRight(PIECE_IDS.RIGHT)">→</button>
+                            <button class="control-btn hard-drop-btn orange-btn"
+                                @click="hardDrop(PIECE_IDS.RIGHT)">⬇︎</button>
                         </div>
                     </div>
                 </div>

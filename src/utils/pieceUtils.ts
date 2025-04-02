@@ -43,7 +43,7 @@ export function checkCollisionWithBoard(
 
 export function checkCollisionBetweenPieces(
   piece1: Tetromino,
-  piece2: Tetromino | null,
+  piece2?: Tetromino | null,
 ): boolean {
   if (!piece2) return false
 

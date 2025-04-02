@@ -1,29 +1,32 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useGameStore } from '@/stores/game'
-import { useMobileDetection } from '@/composables/useMobileDetection.ts'
+import { computed, ref, watch } from "vue"
+import { useGameStore } from "@/stores/game"
+import { useMobileDetection } from "@/composables/useMobileDetection.ts"
+import { PIECE_IDS } from "@/constants/pieces"
 
-const gameStore = useGameStore();
-const { isMobile } = useMobileDetection();
-const cellSize = ref(20);
+const gameStore = useGameStore()
+const { isMobile } = useMobileDetection()
+const cellSize = ref(20)
 
 const nextPiece1Display = computed(() => {
-    if (!gameStore.nextPiece1) return [];
-    return gameStore.nextPiece1.shape;
-});
+    const piece = gameStore.nextPieces.get(PIECE_IDS.LEFT)
+    if (!piece) return []
+    return piece.shape
+})
 
 const nextPiece2Display = computed(() => {
-    if (!gameStore.nextPiece2) return [];
-    return gameStore.nextPiece2.shape;
-});
+    const piece = gameStore.nextPieces.get(PIECE_IDS.RIGHT)
+    if (!piece) return []
+    return piece.shape
+})
 
 // Update cell size when mobile status changes
 function updateCellSize() {
-    cellSize.value = isMobile.value ? 16 : 20;
+    cellSize.value = isMobile.value ? 16 : 20
 }
 
 // Watch for mobile changes to update cell size
-watch(isMobile, updateCellSize, { immediate: true });
+watch(isMobile, updateCellSize, { immediate: true })
 </script>
 
 <template>
@@ -34,7 +37,7 @@ watch(isMobile, updateCellSize, { immediate: true });
                 <div v-for="(row, rowIndex) in nextPiece1Display" :key="`row1-${rowIndex}`" class="preview-row">
                     <div v-for="(cell, cellIndex) in row" :key="`cell1-${rowIndex}-${cellIndex}`" class="preview-cell"
                         :class="{ filled: cell, 'left-preview': cell }" :style="{
-                            backgroundColor: cell ? gameStore.nextPiece1?.color : 'transparent',
+                            backgroundColor: cell ? gameStore.nextPieces.get(PIECE_IDS.LEFT)?.color : 'transparent',
                             width: `${cellSize}px`,
                             height: `${cellSize}px`
                         }"></div>
@@ -48,7 +51,7 @@ watch(isMobile, updateCellSize, { immediate: true });
                 <div v-for="(row, rowIndex) in nextPiece2Display" :key="`row2-${rowIndex}`" class="preview-row">
                     <div v-for="(cell, cellIndex) in row" :key="`cell2-${rowIndex}-${cellIndex}`" class="preview-cell"
                         :class="{ filled: cell, 'right-preview': cell }" :style="{
-                            backgroundColor: cell ? gameStore.nextPiece2?.color : 'transparent',
+                            backgroundColor: cell ? gameStore.nextPieces.get(PIECE_IDS.RIGHT)?.color : 'transparent',
                             width: `${cellSize}px`,
                             height: `${cellSize}px`
                         }"></div>

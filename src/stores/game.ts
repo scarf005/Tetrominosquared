@@ -20,14 +20,28 @@ import {
   createEmptyBoard,
   lockPieceToBoard,
 } from "@/utils/boardUtils.ts"
+import {
+  COMPONENT_TYPES,
+  PIECE_IDS,
+  PIECE_METADATA,
+  type PieceId
+} from "@/constants/pieces.ts"
 
 export const useGameStore = defineStore("game", () => {
   // State
   const board = ref<Cell[][]>(createEmptyBoard())
-  const currentPiece1 = ref<Tetromino | null>(null) // Left piece (WASD controls)
-  const currentPiece2 = ref<Tetromino | null>(null) // Right piece (Arrow keys)
-  const nextPiece1 = ref<Tetromino | null>(null) // Next piece for left
-  const nextPiece2 = ref<Tetromino | null>(null) // Next piece for right
+
+  // Store pieces in maps
+  const currentPieces = ref<Map<PieceId, Tetromino | null>>(new Map([
+    [PIECE_IDS.LEFT, null],
+    [PIECE_IDS.RIGHT, null]
+  ]))
+
+  const nextPieces = ref<Map<PieceId, Tetromino | null>>(new Map([
+    [PIECE_IDS.LEFT, null],
+    [PIECE_IDS.RIGHT, null]
+  ]))
+
   const score = ref(0)
   const level = ref(1)
   const lines = ref(0)
@@ -38,29 +52,32 @@ export const useGameStore = defineStore("game", () => {
   // Getters
   const dropInterval = computed(() => Math.max(100, 1000 - level.value * 100))
 
-  // Calculate ghost piece positions for both pieces
-  const ghostPiecePosition1 = computed(() => {
-    if (!currentPiece1.value) return null
-    return calculateGhostPosition(
-      currentPiece1.value,
-      currentPiece2.value,
-      board.value,
-    )
-  })
+  // Compute ghost positions for all pieces
+  const ghostPiecePositions = computed(() => {
+    const positions = new Map<PieceId, Position | null>()
 
-  const ghostPiecePosition2 = computed(() => {
-    if (!currentPiece2.value) return null
-    return calculateGhostPosition(
-      currentPiece2.value,
-      currentPiece1.value,
-      board.value,
-    )
+    // For each piece, calculate its ghost position
+    for (const [id, piece] of currentPieces.value.entries()) {
+      if (!piece) {
+        positions.set(id, null)
+        continue
+      }
+
+      // Get the other piece for collision detection
+      const otherPieceId = id === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+      const otherPiece = currentPieces.value.get(otherPieceId) ?? null
+
+      positions.set(id, calculateGhostPosition(piece, otherPiece, board.value))
+    }
+
+    return positions
   })
 
   // Actions
-  function createRandomPiece(offsetX = 0): Tetromino {
+  function createRandomPiece(pieceId: PieceId): Tetromino {
     const types: TetrominoType[] = ["I", "J", "L", "O", "S", "T", "Z"]
     const type = types[Math.floor(Math.random() * types.length)]
+    const metadata = PIECE_METADATA[pieceId]
 
     return {
       type,
@@ -68,7 +85,7 @@ export const useGameStore = defineStore("game", () => {
       color: TETROMINO_COLORS[type],
       position: {
         x: Math.floor(BOARD_WIDTH / 2) -
-          Math.floor(TETROMINO_SHAPES[type][0].length / 2) + offsetX,
+          Math.floor(TETROMINO_SHAPES[type][0].length / 2) + metadata.offsetX,
         y: 0,
       },
       rotation: 0,
@@ -81,194 +98,144 @@ export const useGameStore = defineStore("game", () => {
     paused.value = false
 
     // Create both next pieces
-    nextPiece1.value = createRandomPiece(-3)
-    nextPiece2.value = createRandomPiece(3)
+    Object.values(PIECE_IDS).forEach(id => {
+      nextPieces.value.set(id, createRandomPiece(id))
+    })
 
     // Spawn the initial pieces
-    spawnPiece1()
-    spawnPiece2()
+    spawnPiece(PIECE_IDS.LEFT)
+    spawnPiece(PIECE_IDS.RIGHT)
 
     startGameLoop()
   }
 
   function resetGame() {
     board.value = createEmptyBoard()
-    currentPiece1.value = null
-    currentPiece2.value = null
-    nextPiece1.value = null
-    nextPiece2.value = null
+
+    // Reset all pieces
+    Object.values(PIECE_IDS).forEach(id => {
+      currentPieces.value.set(id, null)
+      nextPieces.value.set(id, null)
+    })
+
     score.value = 0
     level.value = 1
     lines.value = 0
     stopGameLoop()
   }
 
-  // Spawn piece 1 (left) with collision check
-  function spawnPiece1() {
-    if (!nextPiece1.value) {
-      nextPiece1.value = createRandomPiece(-3)
+  // Generic spawn piece function
+  function spawnPiece(pieceId: PieceId) {
+    const nextPiece = nextPieces.value.get(pieceId)
+    if (!nextPiece) {
+      nextPieces.value.set(pieceId, createRandomPiece(pieceId))
+      return
     }
 
-    currentPiece1.value = nextPiece1.value
-    nextPiece1.value = createRandomPiece(-3)
+    // Set current piece to next piece
+    currentPieces.value.set(pieceId, nextPiece)
 
-    // Ensure new piece doesn't overlap with existing piece 2
-    if (
-      currentPiece2.value &&
-      checkCollisionBetweenPieces(currentPiece1.value, currentPiece2.value)
-    ) {
+    // Create a new next piece
+    nextPieces.value.set(pieceId, createRandomPiece(pieceId))
+
+    // Get the other piece ID for collision checks
+    const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+    const otherPiece = currentPieces.value.get(otherPieceId)
+
+    // Ensure new piece doesn't overlap with existing piece
+    const currentPiece = currentPieces.value.get(pieceId)
+    if (currentPiece && otherPiece && checkCollisionBetweenPieces(currentPiece, otherPiece)) {
       // Try to adjust horizontally if there's overlap
-      if (currentPiece1.value.position.x > BOARD_WIDTH / 2) {
-        currentPiece1.value.position.x -= 2
+      if (currentPiece.position.x > BOARD_WIDTH / 2) {
+        currentPiece.position.x -= pieceId === PIECE_IDS.LEFT ? 2 : -2
       } else {
-        currentPiece1.value.position.x -= 3
+        currentPiece.position.x += pieceId === PIECE_IDS.LEFT ? -3 : 3
       }
     }
 
-    // Only check for game over if the piece collides with the board,
-    // not if it collides with the other piece (which might be anywhere on the board)
-    if (
-      checkCollisionWithBoard(
-        currentPiece1.value,
-        currentPiece1.value.position,
-        board.value,
-      )
-    ) {
+    // Check for game over only if collision with board
+    const piece = currentPieces.value.get(pieceId)
+    if (piece && checkCollisionWithBoard(piece, piece.position, board.value)) {
       gameOver.value = true
       stopGameLoop()
     }
   }
 
-  // Spawn piece 2 (right) with collision check
-  function spawnPiece2() {
-    if (!nextPiece2.value) {
-      nextPiece2.value = createRandomPiece(3)
-    }
+  // Generic movement function for any piece
+  function movePiece(pieceId: PieceId, dx: number, dy: number) {
+    if (gameOver.value || paused.value) return
 
-    currentPiece2.value = nextPiece2.value
-    nextPiece2.value = createRandomPiece(3)
-
-    // Ensure new piece doesn't overlap with existing piece 1
-    if (
-      currentPiece1.value &&
-      checkCollisionBetweenPieces(currentPiece2.value, currentPiece1.value)
-    ) {
-      // Try to adjust horizontally if there's overlap
-      if (currentPiece2.value.position.x < BOARD_WIDTH / 2) {
-        currentPiece2.value.position.x += 2
-      } else {
-        currentPiece2.value.position.x += 3
-      }
-    }
-
-    // Only check for game over if the piece collides with the board,
-    // not if it collides with the other piece (which might be anywhere on the board)
-    if (
-      checkCollisionWithBoard(
-        currentPiece2.value,
-        currentPiece2.value.position,
-        board.value,
-      )
-    ) {
-      gameOver.value = true
-      stopGameLoop()
-    }
-  }
-
-  // Functions to control piece 1 (left hand - WASD)
-  function movePiece1(dx: number, dy: number) {
-    if (gameOver.value || paused.value || !currentPiece1.value) return
-
-    const newPosition: Position = {
-      x: currentPiece1.value.position.x + dx,
-      y: currentPiece1.value.position.y + dy,
-    }
-
-    // Check collision with board and other piece
-    const boardCollision = checkCollisionWithBoard(
-      currentPiece1.value,
-      newPosition,
-      board.value,
-    )
-    const pieceCollision = checkCollisionBetweenPieces({
-      ...currentPiece1.value,
-      position: newPosition,
-    }, currentPiece2.value)
-
-    if (!boardCollision && !pieceCollision) {
-      // If no collision, just move the piece
-      currentPiece1.value.position = newPosition
-    } else if (dy > 0) {
-      // If collision happened during downward movement,
-      // only lock if it hit the board, NOT if it hit the other piece
-      if (boardCollision) {
-        lockPiece1()
-      }
-      // If it hit the other piece, don't lock - it's not "landed"
-    }
-  }
-
-  function rotatePiece1() {
-    if (!currentPiece1.value || gameOver.value || paused.value) return
-    tryRotatePiece(currentPiece1, currentPiece2.value)
-  }
-
-  function hardDropPiece1() {
-    if (gameOver.value || paused.value || !currentPiece1.value) return
-    performHardDrop(currentPiece1, currentPiece2.value)
-  }
-
-  // Functions to control piece 2 (right hand - Arrow keys)
-  function movePiece2(dx: number, dy: number) {
-    if (gameOver.value || paused.value || !currentPiece2.value) return
-
-    const newPosition: Position = {
-      x: currentPiece2.value.position.x + dx,
-      y: currentPiece2.value.position.y + dy,
-    }
-
-    // Check collision with board and other piece
-    const boardCollision = checkCollisionWithBoard(
-      currentPiece2.value,
-      newPosition,
-      board.value,
-    )
-    const pieceCollision = checkCollisionBetweenPieces({
-      ...currentPiece2.value,
-      position: newPosition,
-    }, currentPiece1.value)
-
-    if (!boardCollision && !pieceCollision) {
-      // If no collision, just move the piece
-      currentPiece2.value.position = newPosition
-    } else if (dy > 0) {
-      // If collision happened during downward movement,
-      // only lock if it hit the board, NOT if it hit the other piece
-      if (boardCollision) {
-        lockPiece2()
-      }
-      // If it hit the other piece, don't lock - it's not "landed"
-    }
-  }
-
-  function rotatePiece2() {
-    if (!currentPiece2.value || gameOver.value || paused.value) return
-    tryRotatePiece(currentPiece2, currentPiece1.value)
-  }
-
-  function hardDropPiece2() {
-    if (gameOver.value || paused.value || !currentPiece2.value) return
-    performHardDrop(currentPiece2, currentPiece1.value)
-  }
-
-  // Helper for rotation
-  function tryRotatePiece(
-    pieceRef: typeof currentPiece1 | typeof currentPiece2,
-    otherPiece: Tetromino | null,
-  ) {
-    const piece = pieceRef.value
+    const piece = currentPieces.value.get(pieceId)
     if (!piece) return
 
+    const newPosition: Position = {
+      x: piece.position.x + dx,
+      y: piece.position.y + dy,
+    }
+
+    // Get the other piece for collision checks
+    const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+    const otherPiece = currentPieces.value.get(otherPieceId)
+
+    // Check collision with board and other piece
+    const boardCollision = checkCollisionWithBoard(
+      piece,
+      newPosition,
+      board.value,
+    )
+
+    const pieceCollision = checkCollisionBetweenPieces(
+      { ...piece, position: newPosition },
+      otherPiece,
+    )
+
+    if (!boardCollision && !pieceCollision) {
+      // If no collision, just move the piece
+      piece.position = newPosition
+    } else if (dy > 0) {
+      // If collision happened during downward movement,
+      // only lock if it hit the board, NOT if it hit the other piece
+      if (boardCollision) {
+        lockPiece(pieceId)
+      }
+      // If it hit the other piece, don't lock - it's not "landed"
+    }
+  }
+
+  // Generic rotation function for any piece
+  function rotatePiece(pieceId: PieceId) {
+    if (gameOver.value || paused.value) return
+
+    const piece = currentPieces.value.get(pieceId)
+    if (!piece) return
+
+    // Get the other piece for collision checks
+    const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+    const otherPiece = currentPieces.value.get(otherPieceId) ?? null
+
+    tryRotatePiece(piece, otherPiece, pieceId)
+  }
+
+  // Generic hard drop function for any piece
+  function hardDropPiece(pieceId: PieceId) {
+    if (gameOver.value || paused.value) return
+
+    const piece = currentPieces.value.get(pieceId)
+    if (!piece) return
+
+    // Get the other piece for collision checks
+    const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+    const otherPiece = currentPieces.value.get(otherPieceId) ?? null
+
+    performHardDrop(piece, otherPiece, pieceId)
+  }
+
+  // Helper for rotation - now operates on piece objects directly
+  function tryRotatePiece(
+    piece: Tetromino,
+    otherPiece: Tetromino | null,
+    pieceId: PieceId
+  ) {
     const currentRotation = piece.rotation
     const newRotation = (currentRotation + 1) % 4
 
@@ -305,24 +272,22 @@ export const useGameStore = defineStore("game", () => {
         )
       ) {
         // This position works - apply the rotation and the position offset
-        pieceRef.value = {
+        currentPieces.value.set(pieceId, {
           ...newPiece,
           position: testPosition,
-        }
+        })
         return // Exit after finding a valid position
       }
     }
     // If we got here, no valid rotation position was found
   }
 
-  // Helper for hard drop
+  // Helper for hard drop - now operates on piece objects directly
   function performHardDrop(
-    pieceRef: typeof currentPiece1 | typeof currentPiece2,
+    piece: Tetromino,
     otherPiece: Tetromino | null,
+    pieceId: PieceId
   ) {
-    const piece = pieceRef.value
-    if (!piece) return
-
     // Calculate the drop distance considering board and the other piece
     let dropY = piece.position.y
 
@@ -341,27 +306,23 @@ export const useGameStore = defineStore("game", () => {
       score.value += 1 // Add 1 point for each cell dropped
     }
 
-    // Apply the drop - add null check to ensure pieceRef.value exists
-    if (pieceRef.value) {
-      pieceRef.value.position.y = dropY
+    // Apply the drop
+    const updatedPiece = { ...piece, position: { ...piece.position, y: dropY } }
+    currentPieces.value.set(pieceId, updatedPiece)
 
-      // For hard drops, we only lock if it's hitting the board, not another piece
-      if (
-        checkCollisionWithBoard(piece, {
-          x: piece.position.x,
-          y: piece.position.y + 1,
-        }, board.value)
-      ) {
-        if (pieceRef === currentPiece1) {
-          lockPiece1()
-        } else {
-          lockPiece2()
-        }
-      }
+    // For hard drops, we only lock if it's hitting the board, not another piece
+    if (
+      checkCollisionWithBoard(updatedPiece, {
+        x: updatedPiece.position.x,
+        y: updatedPiece.position.y + 1,
+      }, board.value)
+    ) {
+      lockPiece(pieceId)
     }
   }
 
-  function checkCannotMoveDown(piece: Tetromino | null): boolean {
+  function checkCannotMoveDown(pieceId: PieceId): boolean {
+    const piece = currentPieces.value.get(pieceId)
     if (!piece) return true
 
     const newPosition = {
@@ -375,9 +336,9 @@ export const useGameStore = defineStore("game", () => {
     }
 
     // Check if it would collide with the other piece
-    const otherPiece = piece === currentPiece1.value
-      ? currentPiece2.value
-      : currentPiece1.value
+    const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+    const otherPiece = currentPieces.value.get(otherPieceId)
+
     if (
       otherPiece && checkCollisionBetweenPieces(
         { ...piece, position: newPosition },
@@ -398,67 +359,48 @@ export const useGameStore = defineStore("game", () => {
   function moveAllPiecesDown() {
     if (gameOver.value || paused.value) return
 
-    // Try to move piece 1 down
-    if (currentPiece1.value) {
-      const newPosition1 = {
-        x: currentPiece1.value.position.x,
-        y: currentPiece1.value.position.y + 1,
+    // Process each piece
+    Object.values(PIECE_IDS).forEach(pieceId => {
+      const piece = currentPieces.value.get(pieceId)
+      if (!piece) return
+
+      const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+      const otherPiece = currentPieces.value.get(otherPieceId)
+
+      const newPosition = {
+        x: piece.position.x,
+        y: piece.position.y + 1,
       }
 
-      const boardCollision1 = checkCollisionWithBoard(
-        currentPiece1.value,
-        newPosition1,
+      const boardCollision = checkCollisionWithBoard(
+        piece,
+        newPosition,
         board.value,
       )
-      const pieceCollision1 = checkCollisionBetweenPieces({
-        ...currentPiece1.value,
-        position: newPosition1,
-      }, currentPiece2.value)
 
-      if (!boardCollision1 && !pieceCollision1) {
-        currentPiece1.value.position = newPosition1
-      } else {
-        // Only lock if it hit the board, not another piece
-        if (boardCollision1) {
-          lockPiece1()
-        }
-      }
-    }
-
-    // Try to move piece 2 down
-    if (currentPiece2.value) {
-      const newPosition2 = {
-        x: currentPiece2.value.position.x,
-        y: currentPiece2.value.position.y + 1,
-      }
-
-      const boardCollision2 = checkCollisionWithBoard(
-        currentPiece2.value,
-        newPosition2,
-        board.value,
+      const pieceCollision = checkCollisionBetweenPieces(
+        { ...piece, position: newPosition },
+        otherPiece,
       )
-      const pieceCollision2 = checkCollisionBetweenPieces({
-        ...currentPiece2.value,
-        position: newPosition2,
-      }, currentPiece1.value)
 
-      if (!boardCollision2 && !pieceCollision2) {
-        currentPiece2.value.position = newPosition2
+      if (!boardCollision && !pieceCollision) {
+        piece.position = newPosition
       } else {
         // Only lock if it hit the board, not another piece
-        if (boardCollision2) {
-          lockPiece2()
+        if (boardCollision) {
+          lockPiece(pieceId)
         }
       }
-    }
+    })
   }
 
-  // Lock piece 1 and spawn a new one
-  function lockPiece1() {
-    if (!currentPiece1.value) return
+  // Generic lock piece function
+  function lockPiece(pieceId: PieceId) {
+    const piece = currentPieces.value.get(pieceId)
+    if (!piece) return
 
     // Add the piece to the board
-    board.value = lockPieceToBoard(currentPiece1.value, board.value)
+    board.value = lockPieceToBoard(piece, board.value)
 
     // Check for cleared lines
     const result = clearLines(board.value, level.value)
@@ -473,35 +415,9 @@ export const useGameStore = defineStore("game", () => {
       restartGameLoop()
     }
 
-    // Spawn a new piece 1 only if we're not in game over state
+    // Spawn a new piece only if we're not in game over state
     if (!gameOver.value) {
-      spawnPiece1()
-    }
-  }
-
-  // Lock piece 2 and spawn a new one
-  function lockPiece2() {
-    if (!currentPiece2.value) return
-
-    // Add the piece to the board
-    board.value = lockPieceToBoard(currentPiece2.value, board.value)
-
-    // Check for cleared lines
-    const result = clearLines(board.value, level.value)
-    board.value = result.newBoard
-    lines.value += result.linesCleared
-    score.value += result.scoreToAdd
-
-    // Update level based on lines cleared
-    const newLevel = Math.floor(lines.value / 10) + 1
-    if (newLevel !== level.value) {
-      level.value = newLevel
-      restartGameLoop()
-    }
-
-    // Spawn a new piece 2 only if we're not in game over state
-    if (!gameOver.value) {
-      spawnPiece2()
+      spawnPiece(pieceId)
     }
   }
 
@@ -532,26 +448,25 @@ export const useGameStore = defineStore("game", () => {
   }
 
   return {
+    // State
     board,
-    currentPiece1,
-    currentPiece2,
-    nextPiece1,
-    nextPiece2,
     score,
     level,
     lines,
     gameOver,
     paused,
-    ghostPiecePosition1,
-    ghostPiecePosition2,
+
+    // Maps
+    currentPieces,
+    nextPieces,
+    ghostPiecePositions,
+
+    // Actions
     startGame,
     resetGame,
-    movePiece1,
-    movePiece2,
-    rotatePiece1,
-    rotatePiece2,
-    hardDropPiece1,
-    hardDropPiece2,
+    movePiece,
+    rotatePiece,
+    hardDropPiece,
     togglePause,
   }
 })

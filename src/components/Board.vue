@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { BOARD_WIDTH } from '@/constants/tetrominos'
+import { PIECE_IDS } from '@/constants/pieces'
 
 const gameStore = useGameStore();
 const boardRef = ref<HTMLDivElement | null>(null)
@@ -28,25 +29,23 @@ const displayBoard = computed(() => {
     // Clone the board
     const boardCopy = gameStore.board.map(row => [...row]);
 
-    // Process the first piece
-    if (gameStore.currentPiece1 && gameStore.ghostPiecePosition1) {
-        renderPieceAndGhost(
-            boardCopy,
-            gameStore.currentPiece1,
-            gameStore.ghostPiecePosition1,
-            false, // Left piece (blue highlight)
-            true   // WASD piece
-        );
-    }
+    // Process all pieces
+    for (const [pieceId, piece] of gameStore.currentPieces.entries()) {
+        if (!piece) continue
 
-    // Process the second piece
-    if (gameStore.currentPiece2 && gameStore.ghostPiecePosition2) {
+        const ghostPosition = gameStore.ghostPiecePositions.get(pieceId)
+        if (!ghostPosition) continue
+
+        // Determine if it's left or right piece for styling
+        const isRightPiece = pieceId === PIECE_IDS.RIGHT
+        const isLeftPiece = pieceId === PIECE_IDS.LEFT
+
         renderPieceAndGhost(
             boardCopy,
-            gameStore.currentPiece2,
-            gameStore.ghostPiecePosition2,
-            true,  // Right piece (orange highlight)
-            false  // Arrow keys piece
+            piece,
+            ghostPosition,
+            isRightPiece,
+            isLeftPiece
         );
     }
 
@@ -149,20 +148,18 @@ onUnmounted(() => {
 <template>
     <div class="tetris-board" ref="boardRef">
         <div v-for="(row, rowIndex) in displayBoard" :key="`row-${rowIndex}`" class="board-row">
-            <div v-for="(cell, cellIndex) in row" :key="`cell-${rowIndex}-${cellIndex}`" class="board-cell"
-                 :class="{
-                    filled: cell.filled,
-                    ghost: cell.isGhost,
-                    trail: cell.isTrail,
-                    active: cell.isActive,
-                    'right-piece': cell.isRightPiece,
-                    'left-piece': cell.isLeftPiece
-                 }"
-                 :style="{
-                    backgroundColor: cell.filled ? cell.color : 'transparent',
-                    width: `${cellSize}px`,
-                    height: `${cellSize}px`
-                 }">
+            <div v-for="(cell, cellIndex) in row" :key="`cell-${rowIndex}-${cellIndex}`" class="board-cell" :class="{
+                filled: cell.filled,
+                ghost: cell.isGhost,
+                trail: cell.isTrail,
+                active: cell.isActive,
+                'right-piece': cell.isRightPiece,
+                'left-piece': cell.isLeftPiece
+            }" :style="{
+                backgroundColor: cell.filled ? cell.color : 'transparent',
+                width: `${cellSize}px`,
+                height: `${cellSize}px`
+            }">
             </div>
         </div>
     </div>
@@ -232,11 +229,13 @@ onUnmounted(() => {
         border-width: 1px;
     }
 
-    .filled, .active {
+    .filled,
+    .active {
         box-shadow: inset 0 0 3px rgba(255, 255, 255, 0.3);
     }
 
-    .left-piece, .right-piece {
+    .left-piece,
+    .right-piece {
         border-width: 2px;
     }
 }
