@@ -1,4 +1,7 @@
 {
+  "unstable": [
+    "fmt-component"
+  ],
   "fmt": {
     "semiColons": false
   },

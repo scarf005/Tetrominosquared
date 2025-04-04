@@ -24,7 +24,7 @@ import {
   COMPONENT_TYPES,
   PIECE_IDS,
   PIECE_METADATA,
-  type PieceId
+  type PieceId,
 } from "@/constants/pieces.ts"
 
 export const useGameStore = defineStore("game", () => {
@@ -32,21 +32,27 @@ export const useGameStore = defineStore("game", () => {
   const board = ref<Cell[][]>(createEmptyBoard())
 
   // Store pieces in maps
-  const currentPieces = ref<Map<PieceId, Tetromino | null>>(new Map([
-    [PIECE_IDS.LEFT, null],
-    [PIECE_IDS.RIGHT, null]
-  ]))
+  const currentPieces = ref<Map<PieceId, Tetromino | null>>(
+    new Map([
+      [PIECE_IDS.LEFT, null],
+      [PIECE_IDS.RIGHT, null],
+    ]),
+  )
 
-  const nextPieces = ref<Map<PieceId, Tetromino | null>>(new Map([
-    [PIECE_IDS.LEFT, null],
-    [PIECE_IDS.RIGHT, null]
-  ]))
+  const nextPieces = ref<Map<PieceId, Tetromino | null>>(
+    new Map([
+      [PIECE_IDS.LEFT, null],
+      [PIECE_IDS.RIGHT, null],
+    ]),
+  )
 
   // Add drop timers for each piece
-  const pieceDropCounters = ref<Map<PieceId, number>>(new Map([
-    [PIECE_IDS.LEFT, 0],
-    [PIECE_IDS.RIGHT, 0]
-  ]))
+  const pieceDropCounters = ref<Map<PieceId, number>>(
+    new Map([
+      [PIECE_IDS.LEFT, 0],
+      [PIECE_IDS.RIGHT, 0],
+    ]),
+  )
 
   const score = ref(0)
   const level = ref(1)
@@ -83,7 +89,9 @@ export const useGameStore = defineStore("game", () => {
       }
 
       // Get the other piece for collision detection
-      const otherPieceId = id === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+      const otherPieceId = id === PIECE_IDS.LEFT
+        ? PIECE_IDS.RIGHT
+        : PIECE_IDS.LEFT
       const otherPiece = currentPieces.value.get(otherPieceId) ?? null
 
       positions.set(id, calculateGhostPosition(piece, otherPiece, board.value))
@@ -117,7 +125,7 @@ export const useGameStore = defineStore("game", () => {
     paused.value = false
 
     // Create both next pieces
-    Object.values(PIECE_IDS).forEach(id => {
+    Object.values(PIECE_IDS).forEach((id) => {
       nextPieces.value.set(id, createRandomPiece(id))
     })
 
@@ -132,7 +140,7 @@ export const useGameStore = defineStore("game", () => {
     board.value = createEmptyBoard()
 
     // Reset all pieces
-    Object.values(PIECE_IDS).forEach(id => {
+    Object.values(PIECE_IDS).forEach((id) => {
       currentPieces.value.set(id, null)
       nextPieces.value.set(id, null)
       pieceDropCounters.value.set(id, 0)
@@ -159,12 +167,17 @@ export const useGameStore = defineStore("game", () => {
     nextPieces.value.set(pieceId, createRandomPiece(pieceId))
 
     // Get the other piece ID for collision checks
-    const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+    const otherPieceId = pieceId === PIECE_IDS.LEFT
+      ? PIECE_IDS.RIGHT
+      : PIECE_IDS.LEFT
     const otherPiece = currentPieces.value.get(otherPieceId)
 
     // Ensure new piece doesn't overlap with existing piece
     const currentPiece = currentPieces.value.get(pieceId)
-    if (currentPiece && otherPiece && checkCollisionBetweenPieces(currentPiece, otherPiece)) {
+    if (
+      currentPiece && otherPiece &&
+      checkCollisionBetweenPieces(currentPiece, otherPiece)
+    ) {
       // Try to adjust horizontally if there's overlap
       if (currentPiece.position.x > BOARD_WIDTH / 2) {
         currentPiece.position.x -= pieceId === PIECE_IDS.LEFT ? 2 : -2
@@ -197,7 +210,9 @@ export const useGameStore = defineStore("game", () => {
     }
 
     // Get the other piece for collision checks
-    const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+    const otherPieceId = pieceId === PIECE_IDS.LEFT
+      ? PIECE_IDS.RIGHT
+      : PIECE_IDS.LEFT
     const otherPiece = currentPieces.value.get(otherPieceId)
 
     // Check collision with board and other piece
@@ -233,7 +248,9 @@ export const useGameStore = defineStore("game", () => {
     if (!piece) return
 
     // Get the other piece for collision checks
-    const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+    const otherPieceId = pieceId === PIECE_IDS.LEFT
+      ? PIECE_IDS.RIGHT
+      : PIECE_IDS.LEFT
     const otherPiece = currentPieces.value.get(otherPieceId) ?? null
 
     tryRotatePiece(piece, otherPiece, pieceId)
@@ -247,7 +264,9 @@ export const useGameStore = defineStore("game", () => {
     if (!piece) return
 
     // Get the other piece for collision checks
-    const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+    const otherPieceId = pieceId === PIECE_IDS.LEFT
+      ? PIECE_IDS.RIGHT
+      : PIECE_IDS.LEFT
     const otherPiece = currentPieces.value.get(otherPieceId) ?? null
 
     performHardDrop(piece, otherPiece, pieceId)
@@ -257,7 +276,7 @@ export const useGameStore = defineStore("game", () => {
   function tryRotatePiece(
     piece: Tetromino,
     otherPiece: Tetromino | null,
-    pieceId: PieceId
+    pieceId: PieceId,
   ) {
     const currentRotation = piece.rotation
     const newRotation = (currentRotation + 1) % 4
@@ -309,7 +328,7 @@ export const useGameStore = defineStore("game", () => {
   function performHardDrop(
     piece: Tetromino,
     otherPiece: Tetromino | null,
-    pieceId: PieceId
+    pieceId: PieceId,
   ) {
     // Calculate the drop distance considering board and the other piece
     let dropY = piece.position.y
@@ -359,7 +378,9 @@ export const useGameStore = defineStore("game", () => {
     }
 
     // Check if it would collide with the other piece
-    const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+    const otherPieceId = pieceId === PIECE_IDS.LEFT
+      ? PIECE_IDS.RIGHT
+      : PIECE_IDS.LEFT
     const otherPiece = currentPieces.value.get(otherPieceId)
 
     if (
@@ -383,7 +404,7 @@ export const useGameStore = defineStore("game", () => {
     if (gameOver.value || paused.value) return
 
     // Process each piece
-    Object.values(PIECE_IDS).forEach(pieceId => {
+    Object.values(PIECE_IDS).forEach((pieceId) => {
       const piece = currentPieces.value.get(pieceId)
       if (!piece) return
 
@@ -400,7 +421,9 @@ export const useGameStore = defineStore("game", () => {
         // Reset counter (keep remainder for more accurate timing)
         pieceDropCounters.value.set(pieceId, newCount % intervalForPiece)
 
-        const otherPieceId = pieceId === PIECE_IDS.LEFT ? PIECE_IDS.RIGHT : PIECE_IDS.LEFT
+        const otherPieceId = pieceId === PIECE_IDS.LEFT
+          ? PIECE_IDS.RIGHT
+          : PIECE_IDS.LEFT
         const otherPiece = currentPieces.value.get(otherPieceId)
 
         const newPosition = {
